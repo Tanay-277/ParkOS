@@ -45,6 +45,7 @@ interface BottomToolbarProps {
 	handleParkVehicle: () => void;
 	visible: boolean;
 	setVisible: (visible: boolean) => void;
+	disabled?: boolean;
 }
 
 export function BottomToolbar({
@@ -59,6 +60,7 @@ export function BottomToolbar({
 	handleParkVehicle,
 	visible,
 	setVisible,
+	disabled = false,
 }: BottomToolbarProps) {
 	const [optionsReady, setOptionsReady] = useState(false);
 	const [showShortcutHint, setShowShortcutHint] = useState(true);
@@ -142,9 +144,9 @@ export function BottomToolbar({
 			<AnimatePresence mode="wait">
 				{visible ? (
 					<motion.div
-						className="w-full bg-card/90 backdrop-blur-md border-t border-border/50 shadow-lg z-40 fixed bottom-0 left-0"
+						className={`w-full bg-card/90 backdrop-blur-md border-t border-border/50 shadow-lg z-40 fixed bottom-0 left-0 ${disabled ? "opacity-60 pointer-events-none" : ""}`}
 						initial={{ y: 100, opacity: 0 }}
-						animate={{ y: 0, opacity: 1 }}
+						animate={{ y: 0, opacity: disabled ? 0.6 : 1 }}
 						exit={{ y: 100, opacity: 0 }}
 						transition={{
 							duration: 0.5,
@@ -408,9 +410,9 @@ export function BottomToolbar({
 				) : (
 					<motion.div
 						initial={{ opacity: 0, scale: 0.8, y: 20 }}
-						animate={{ opacity: 1, scale: 1, y: 0 }}
+						animate={{ opacity: disabled ? 0.6 : 1, scale: 1, y: 0 }}
 						exit={{ opacity: 0, scale: 0.8, y: 20 }}
-						className="fixed bottom-4 right-4 z-40"
+						className={`fixed bottom-4 right-4 z-40 ${disabled ? "opacity-60 pointer-events-none" : ""}`}
 						transition={{ type: "spring", stiffness: 300, damping: 25 }}
 					>
 						<Tooltip>
