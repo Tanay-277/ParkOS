@@ -4,74 +4,64 @@ import { motion } from "framer-motion";
 
 export function LoadingScreen() {
   return (
-    <div className="fixed inset-0 bg-background flex items-center justify-center z-50">
-      <div className="w-full max-w-xs mx-auto flex flex-col items-center">
-        <motion.div
-          className="flex flex-col items-center justify-center"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+    <div className="h-screen w-full bg-[#111] flex items-center justify-center">
+      <motion.div 
+        className="flex flex-col items-center"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.6 }}
+      >
+        <motion.div 
+          className="w-12 h-12 mb-8"
+          initial={{ opacity: 0.8 }}
+          animate={{ opacity: 1 }}
         >
-          <div className="flex items-center space-x-2 mb-4">
-            <Logo />
-            <h1 className="text-2xl font-bold text-primary">ParkOS</h1>
-          </div>
-          <p className="text-muted-foreground text-sm mb-6">Intelligent Parking System</p>
-
-          {/* Animated loading indicator */}
-          <div className="relative w-12 h-12 mb-8">
-            <motion.div
-              className="absolute inset-0 border-2 border-t-primary border-r-transparent border-b-transparent border-l-transparent rounded-full"
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          <svg viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg" fill="none">
+            <motion.path 
+              d="M22 4C12 4 4 12 4 22C4 32 12 40 22 40C32 40 40 32 40 22C40 12 32 4 22 4ZM22 36C14 36 8 30 8 22C8 14 14 8 22 8C30 8 36 14 36 22C36 30 30 36 22 36Z" 
+              stroke="rgba(255,255,255,0.85)" 
+              strokeWidth="2"
+              initial={{ pathLength: 0 }}
+              animate={{ pathLength: 1 }}
+              transition={{ duration: 1.8, ease: "easeInOut", repeat: Infinity }}
             />
-            <motion.div
-              className="absolute inset-1 border-2 border-r-primary border-l-transparent border-t-transparent border-b-transparent rounded-full"
-              animate={{ rotate: -360 }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+            <motion.path 
+              d="M22 12C16 12 12 16 12 22" 
+              stroke="rgba(255,255,255,0.85)" 
+              strokeWidth="2"
+              strokeLinecap="round"
+              initial={{ pathLength: 0, rotate: 0 }}
+              animate={{ pathLength: 1, rotate: 360 }}
+              transition={{ duration: 1.5, ease: "linear", repeat: Infinity }}
+              style={{ originX: "22px", originY: "22px" }}
             />
-          </div>
+          </svg>
         </motion.div>
+        
+        <motion.h1
+          className="text-[#f1f1f1] text-4xl font-semibold tracking-tight"
+          initial={{ opacity: 0, y: 5 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.2 }}
+        >
+          ParkOS
+        </motion.h1>
 
-        <motion.div
-          className="w-full max-w-[200px] h-1 bg-muted rounded-full overflow-hidden"
+        <motion.div 
+          className="mt-6 h-[1px] w-16 bg-[#333]"
+          initial={{ scaleX: 0 }}
+          animate={{ scaleX: 1 }}
+          transition={{ duration: 0.6, delay: 0.4 }}
+        />
+        
+        <motion.p
+          className="mt-6 text-[#777] text-xs tracking-widest uppercase"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
+          transition={{ duration: 0.8, delay: 0.8 }}
         >
-          <motion.div
-            className="h-full bg-primary"
-            initial={{ width: "0%" }}
-            animate={{ width: "100%" }}
-            transition={{ duration: 2, ease: "easeInOut" }}
-          />
-        </motion.div>
-      </div>
-    </div>
-  );
-}
-
-function Logo() {
-  return (
-    <div className="relative w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-      <motion.div
-        className="absolute inset-0 border-2 border-primary rounded-lg"
-        initial={{ scale: 0.8, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ duration: 0.5 }}
-      />
-      <motion.div
-        className="w-6 h-6 border-2 border-primary rounded flex items-center justify-center"
-        initial={{ rotate: -20 }}
-        animate={{ rotate: 0 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-      >
-        <motion.div
-          className="w-3 h-3 bg-primary rounded-sm"
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ delay: 0.2, duration: 0.5 }}
-        />
+          Redefining Urban Mobility
+        </motion.p>
       </motion.div>
     </div>
   );

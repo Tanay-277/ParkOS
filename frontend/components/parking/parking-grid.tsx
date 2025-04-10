@@ -56,29 +56,24 @@ interface ParkingGridProps {
 	compact?: boolean;
 }
 
-// Memoize vehicle type colors to prevent recreation
+// Define colors for different vehicle types
 const vehicleTypeColors = {
 	car: {
-		small: "rgba(99, 102, 241, 0.3)", // Indigo for small cars
-		medium: "rgba(99, 102, 241, 0.5)", // Darker indigo for medium cars
+		small: "rgba(99, 102, 241, 0.5)", // Indigo for small cars
+		medium: "rgba(99, 102, 241, 0.6)", // Darker indigo for medium cars
 		large: "rgba(99, 102, 241, 0.7)", // Darkest indigo for large cars
-		border: "rgba(99, 102, 241, 0.9)",
 	},
 	bike: {
-		default: "rgba(52, 211, 153, 0.4)", // Green for bikes
-		border: "rgba(52, 211, 153, 0.9)",
+		default: "rgba(52, 211, 153, 0.6)", // Green for bikes
 	},
 	ev: {
-		default: "rgba(251, 146, 60, 0.4)", // Orange for EVs
-		border: "rgba(251, 146, 60, 0.9)",
+		default: "rgba(251, 146, 60, 0.6)", // Orange for EVs
 	},
 	truck: {
-		default: "rgba(239, 68, 68, 0.4)", // Red for trucks
-		border: "rgba(239, 68, 68, 0.9)",
+		default: "rgba(239, 68, 68, 0.6)", // Red for trucks
 	},
 	vip: {
-		overlay: "rgba(250, 204, 21, 0.3)", // Gold overlay for VIP vehicles
-		border: "rgba(250, 204, 21, 0.8)",
+		overlay: "rgba(250, 204, 21, 0.5)", // Gold overlay for VIP vehicles
 	},
 };
 
@@ -126,29 +121,32 @@ const ParkingSlotComponent = memo(
 		let slotBorderStyle = "";
 
 		if (isOccupied) {
+			// Basic styling
 			slotBgColor = slot.groupColor || "transparent";
 
-			// For multi-slot vehicles - improved group visualization
+			// Special styling for multi-slot vehicles - particularly for trucks
 			if (slot.isPartOfGroup) {
-				// All slots of the same group get the same background color
-				slotBorderStyle = `
-        border 
-        ${slot.groupColor?.replace(/[^,]+(?=\))/, "0.9") || "transparent"}
-      `;
+				// All slots of a multi-slot vehicle get the same background color
+				slotBorderStyle = "border border-opacity-70";
 
-				// Add special border styling to visually connect the group slots
+				// For trucks, add a more visible styling
+				if (slot.vehicle?.vehicle_type === "truck") {
+					slotBgColor = vehicleTypeColors.truck.default;
+					slotBorderStyle = "border-2 border-red-500";
+				}
+
+				// Add special indicator for the first slot
 				if (slot.isGroupStart) {
-					slotBorderStyle = `
-          border-2 border-l-2 border-t-2
-          ${slot.groupColor?.replace(/[^,]+(?=\))/, "0.9") || "transparent"}
-        `;
+					slotBorderStyle += " border-t-2 border-l-2";
 				}
 			} else {
-				// For single-slot vehicles
-				slotBorderStyle = `
-        border-1 border 
-        ${slot.groupColor?.replace(/[^,]+(?=\))/, "0.9") || "transparent"}
-      `;
+				// Single-slot vehicle
+				slotBorderStyle = `border border-opacity-90`;
+			}
+
+			// VIP styling overlay
+			if (isVIP) {
+				slotBorderStyle += " ring-2 ring-yellow-400";
 			}
 		}
 
@@ -444,7 +442,7 @@ export function ParkingGrid({
 
 				if (slotsForVehicle.length > 0) {
 					const slotsOccupied = slot.vehicle.slots_occupied || 1;
-					const isMultiSlot = slotsOccupied > 1;
+					const isMultiSlot = slotsOccupied > 1 || slotsForVehicle.length > 1;
 
 					// Determine the color based on vehicle type and size
 					let color;
@@ -479,7 +477,7 @@ export function ParkingGrid({
 							isPartOfGroup: true,
 							groupId: vehicleId,
 							isGroupStart: slot.id === minSlotId,
-							groupSize: slotsOccupied,
+							groupSize: slotsOccupied || slotsForVehicle.length,
 							groupColor: color,
 						};
 					} else {

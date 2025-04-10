@@ -10,6 +10,7 @@ export function ApiConnectionTest() {
   const [isLoading, setIsLoading] = useState(false);
   const [apiUrl, setApiUrl] = useState("");
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
+  const [apiDetails, setApiDetails] = useState<any>(null);
 
   useEffect(() => {
     setApiUrl(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1');
@@ -21,6 +22,20 @@ export function ApiConnectionTest() {
     try {
       const connected = await checkApiHealth();
       setIsConnected(connected);
+      
+      // Try to get API details
+      if (connected) {
+        try {
+          const response = await fetch(`${apiUrl}/debug`);
+          if (response.ok) {
+            const data = await response.json();
+            setApiDetails(data);
+          }
+        } catch (e) {
+          console.log("Could not fetch API details");
+        }
+      }
+      
       setLastChecked(new Date());
     } catch (error) {
       console.error("Connection check error:", error);
@@ -78,6 +93,29 @@ export function ApiConnectionTest() {
           <p className="text-xs text-muted-foreground">
             Last checked: {lastChecked.toLocaleTimeString()}
           </p>
+        )}
+        
+        {apiDetails && (
+          <div className="mt-3 pt-3 border-t border-border">
+            <h3 className="text-sm font-medium mb-2">API Details</h3>
+            <div className="text-xs space-y-1 text-muted-foreground">
+              <p>Version: {apiDetails.api_version}</p>
+              {apiDetails.slots_per_floor && (
+                <p>
+                  Slots per floor: {Object.entries(apiDetails.slots_per_floor)
+                    .map(([floor, count]) => `${floor}: ${count}`)
+                    .join(', ')}
+                </p>
+              )}
+              {apiDetails.vehicles && (
+                <p>
+                  Vehicles: {apiDetails.vehicles.total} 
+                  (Parked: {apiDetails.vehicles.parked}, 
+                  Waitlist: {apiDetails.vehicles.waitlist})
+                </p>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>

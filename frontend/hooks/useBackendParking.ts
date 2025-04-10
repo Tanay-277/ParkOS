@@ -53,6 +53,47 @@ export function useBackendParking(floor: string): ParkingSystemResult {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Process slots to include multi-slot vehicle info for UI rendering
+  const processSlots = useCallback((slots: ParkingSlot[]) => {
+    // Create a map of vehicles to their occupied slots
+    const vehicleMap = new Map();
+    
+    // First pass - identify which vehicles occupy multiple slots
+    slots.forEach(slot => {
+      if (slot.vehicle && slot.status === 'occupied') {
+        const vehicleId = slot.vehicle.id;
+        if (!vehicleMap.has(vehicleId)) {
+          vehicleMap.set(vehicleId, []);
+        }
+        vehicleMap.get(vehicleId).push(slot);
+      }
+    });
+    
+    // Second pass - add multi-slot info to each slot
+    return slots.map(slot => {
+      if (slot.vehicle && slot.status === 'occupied') {
+        const occupiedSlots = vehicleMap.get(slot.vehicle.id);
+        if (occupiedSlots && occupiedSlots.length > 1) {
+          // This is a multi-slot vehicle
+          // Sort slots by slot_number
+          const sortedSlots = [...occupiedSlots].sort((a, b) => a.slot_number - b.slot_number);
+          const firstSlot = sortedSlots[0];
+          const isFirstSlot = slot.slot_number === firstSlot.slot_number;
+          
+          // Return the slot with multi-slot information
+          return {
+            ...slot,
+            isPartOfGroup: true,
+            groupId: slot.vehicle.id,
+            isGroupStart: isFirstSlot,
+            groupSize: occupiedSlots.length
+          };
+        }
+      }
+      return slot;
+    });
+  }, []);
+
   // Fetch all data from the backend
   const fetchData = useCallback(async () => {
     try {
@@ -63,7 +104,10 @@ export function useBackendParking(floor: string): ParkingSystemResult {
       
       // Fetch slots
       const slots = await getParkingSlots(floor);
-      setParkingSlots(slots);
+      
+      // Process slots to add multi-slot vehicle information
+      const processedSlots = processSlots(slots);
+      setParkingSlots(processedSlots);
       
       // Fetch status
       const status = await getParkingStatus(floor);
@@ -91,7 +135,7 @@ export function useBackendParking(floor: string): ParkingSystemResult {
     } finally {
       setLoading(false);
     }
-  }, [floor]);
+  }, [floor, processSlots]);
 
   // Park a vehicle
   const parkVehicle = useCallback(async (

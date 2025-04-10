@@ -176,11 +176,54 @@ async function cachedRequest<T>(
 }
 
 /**
+ * Process parking slots to identify and group multi-slot vehicles
+ */
+export function processMultiSlotVehicles(slots: ParkingSlot[]): ParkingSlot[] {
+  const vehicleMap = new Map();
+  
+  // First pass - identify which vehicle occupies which slots
+  slots.forEach(slot => {
+    if (slot.vehicle && slot.status === 'occupied') {
+      const vehicleId = slot.vehicle.id;
+      if (!vehicleMap.has(vehicleId)) {
+        vehicleMap.set(vehicleId, []);
+      }
+      vehicleMap.get(vehicleId).push(slot);
+    }
+  });
+  
+  // Second pass - enhance slots with grouping information
+  return slots.map(slot => {
+    if (slot.vehicle && slot.status === 'occupied') {
+      const occupiedSlots = vehicleMap.get(slot.vehicle.id);
+      if (occupiedSlots && occupiedSlots.length > 1) {
+        // Sort slots by number to find the first one
+        const sortedSlots = [...occupiedSlots].sort((a, b) => a.slot_number - b.slot_number);
+        const isFirstSlot = slot.slot_number === sortedSlots[0].slot_number;
+        
+        // Return enhanced slot with group info
+        return {
+          ...slot,
+          multi_slot: true,
+          group_first: isFirstSlot,
+          group_size: occupiedSlots.length,
+          group_id: slot.vehicle.id
+        };
+      }
+    }
+    return slot;
+  });
+}
+
+/**
  * Get all parking slots with optional floor filtering
  */
 export async function getParkingSlots(floor?: string): Promise<ParkingSlot[]> {
   const url = `/slots${floor ? `?floor=${floor}` : ''}`;
-  return cachedRequest<ParkingSlot[]>(url);
+  const slots = await cachedRequest<ParkingSlot[]>(url);
+  
+  // Process multi-slot vehicles before returning
+  return processMultiSlotVehicles(slots);
 }
 
 /**
