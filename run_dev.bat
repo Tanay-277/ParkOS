@@ -1,15 +1,19 @@
 @echo off
 echo Starting ParkOS Development Environment
 
-echo Starting backend server...
-start cmd /k "cd backend && python -m venv venv && venv\Scripts\activate && pip install -r requirements.txt && uvicorn app.main:app --reload"
+:: Set environment variables
+set PYTHONPATH=%~dp0backend
+set NODE_ENV=development
 
-echo Waiting for backend to initialize...
-timeout /t 5 /nobreak >nul
+:: Start the backend in a new window
+start "ParkOS Backend" cmd /c "cd /d %~dp0backend && echo Installing backend dependencies... && pip install -r requirements.txt && echo Starting backend server... && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"
 
-echo Starting frontend server...
-start cmd /k "cd frontend && npm install && npm run dev"
+:: Give the backend time to start
+timeout /t 5
 
-echo ParkOS development environment started!
-echo Backend API: http://localhost:8000/docs
-echo Frontend: http://localhost:3000
+:: Start the frontend in a new window
+start "ParkOS Frontend" cmd /c "cd /d %~dp0frontend && echo Installing frontend dependencies... && npm install && echo Starting frontend server... && npm run dev"
+
+echo Both services are starting in separate windows.
+echo Backend will be available at http://localhost:8000
+echo Frontend will be available at http://localhost:3000

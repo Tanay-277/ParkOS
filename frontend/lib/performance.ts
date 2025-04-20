@@ -255,3 +255,36 @@ export class PerformanceMonitor {
     };
   }
 }
+
+/**
+ * Batch DOM operations for better performance using requestAnimationFrame
+ * to ensure DOM updates are applied in the next frame
+ */
+export function batchDOMOperations<T>(callback: () => T): Promise<T> {
+  return new Promise(resolve => {
+    requestAnimationFrame(() => {
+      const result = callback();
+      resolve(result);
+    });
+  });
+}
+
+/**
+ * Clear unnecessary console logging in production
+ */
+export function setupProductionLogging(): void {
+  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'production') {
+    const noop = () => {};
+    
+    // Preserve error logging but disable others in production
+    const originalConsole = { ...console };
+    console.log = noop;
+    console.debug = noop;
+    console.info = noop;
+    console.warn = noop;
+    
+    // Keep error and trace for debugging critical issues
+    console.error = originalConsole.error;
+    console.trace = originalConsole.trace;
+  }
+}

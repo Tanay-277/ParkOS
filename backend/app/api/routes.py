@@ -2,13 +2,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
+import traceback  # Add this import at the top level
 
 # Add the missing import
 from app.core.config import settings
 from app.database.db import get_db
 from app.models.parking import Vehicle, ParkingSlot, WaitlistEntry, ParkingEvent
 # Update this line to include VehicleSizeSlots
-from app.models.parking import VehicleType, VehicleSize, SlotStatus, SlotType, VehicleSizeSlots
+from app.models.parking import VehicleType, VehicleSize, SlotStatus, SlotType
+from app.models.car import calculate_slots_needed
 from app.services.allocator import ParkingAllocator
 from app.api.models import (
     VehicleArrivalRequest, VehicleDepartureRequest, ExtendStayRequest,
@@ -73,23 +75,8 @@ def vehicle_arrival(request: VehicleArrivalRequest, db: Session = Depends(get_db
         # Calculate departure time from hours
         departure_time = datetime.utcnow() + timedelta(hours=request.estimated_departure_hours)
         
-        # Determine slots needed based on vehicle type and size without directly referencing VehicleSizeSlots
-        slots_needed = 1
-        if request.vehicle_type == "bike":
-            slots_needed = 1
-        elif request.vehicle_type == "ev":
-            slots_needed = 2
-        elif request.vehicle_type == "truck":
-            slots_needed = 6
-        elif request.vehicle_type == "car":
-            if request.vehicle_size == "small":
-                slots_needed = 2
-            elif request.vehicle_size == "medium":
-                slots_needed = 3
-            elif request.vehicle_size == "large":
-                slots_needed = 4
-            else:  # Default to medium if not specified
-                slots_needed = 3
+        # Calculate slots needed using our utility function
+        slots_needed = calculate_slots_needed(request.vehicle_type, request.vehicle_size)
         
         # Create new vehicle
         new_vehicle = Vehicle(
@@ -131,7 +118,6 @@ def vehicle_arrival(request: VehicleArrivalRequest, db: Session = Depends(get_db
                 waitlist_position=position
             )
     except Exception as e:
-        import traceback
         traceback_str = traceback.format_exc()
         print(f"Error in vehicle arrival: {str(e)}\n{traceback_str}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")

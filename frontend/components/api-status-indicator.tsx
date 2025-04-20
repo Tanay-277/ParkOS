@@ -1,135 +1,99 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import { AlertCircleIcon, CheckCircleIcon, ServerIcon } from "lucide-react";
-import { checkApiStatus, ApiStatus } from "@/utils/api-status";
+import { useState, useEffect, useRef } from "react";
+import { SignalIcon } from "lucide-react";
+import { throttle } from "@/lib/performance";
 
 interface ApiStatusIndicatorProps {
+  pollInterval?: number;
+  apiUrl?: string;
   className?: string;
-  pollInterval?: number; // in ms
 }
 
-export function ApiStatusIndicator({ 
-  className = "",
-  pollInterval = 30000  // Default: check every 30 seconds
+/**
+ * API Status Indicator component that shows connection status with backend
+ * Features automated retry with exponential backoff
+ */
+export function ApiStatusIndicator({
+  pollInterval = 60000, // Default to 60s between checks
+  apiUrl,
+  className = ""
 }: ApiStatusIndicatorProps) {
-  const [status, setStatus] = useState<ApiStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [expanded, setExpanded] = useState(false);
+  const [apiConnected, setApiConnected] = useState(true);
+  const [checkFailed, setCheckFailed] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const attemptCount = useRef(0);
+  const API_BASE_URL = apiUrl || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
-  useEffect(() => {
-    // Initial check
-    checkStatus();
-    
-    // Set up polling
-    const intervalId = setInterval(checkStatus, pollInterval);
-    
-    return () => clearInterval(intervalId);
-    
-    async function checkStatus() {
-      setLoading(true);
-      try {
-        const result = await checkApiStatus();
-        setStatus(result);
-      } catch (error) {
-        console.error("Error checking API status:", error);
-        setStatus({
-          connected: false,
-          corsOk: false,
-          error: error instanceof Error ? error.message : "Unknown error"
-        });
-      } finally {
-        setLoading(false);
+  // Throttled check function to prevent excessive requests
+  const checkApiStatus = throttle(async () => {
+    try {
+      setIsRetrying(attemptCount.current > 0);
+      // Use a simple GET request to the health endpoint
+      const controller = new AbortController();
+      const abortTimeoutId = setTimeout(() => controller.abort(), 3000);
+
+      const response = await fetch(`${API_BASE_URL}/health`, {
+        method: "GET",
+        signal: controller.signal,
+        cache: "no-store",
+      });
+
+      clearTimeout(abortTimeoutId);
+
+      if (response.ok) {
+        setApiConnected(true);
+        setCheckFailed(false);
+        attemptCount.current = 0;
+      } else {
+        console.warn(`API health check returned status ${response.status}`);
+        setApiConnected(false);
+        setCheckFailed(true);
+        attemptCount.current++;
       }
+    } catch (error) {
+      console.warn("API health check failed:", error);
+      setApiConnected(false);
+      setCheckFailed(true);
+      attemptCount.current++;
+    } finally {
+      setIsRetrying(false);
     }
-  }, [pollInterval]);
-  
-  // Don't show anything while first check is running
-  if (!status && loading) return null;
-  
-  const isConnected = status?.connected;
-  const hasCorsIssue = status?.connected === false && status?.error?.includes('CORS');
-  
-  return (
-    <motion.div 
-      className={`fixed bottom-2 left-2 z-50 rounded-lg shadow-md ${className}`}
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-    >
-      <motion.div 
-        className={`${
-          isConnected 
-            ? "bg-green-500/80" 
-            : hasCorsIssue 
-              ? "bg-amber-500/80" 
-              : "bg-red-500/80"
-        } backdrop-blur-md p-2 rounded-lg text-xs text-white flex items-center gap-2 cursor-pointer`}
-        onClick={() => setExpanded(!expanded)}
-        whileHover={{ scale: 1.02 }}
-      >
-        {loading ? (
-          <motion.div 
-            animate={{ rotate: 360 }} 
-            transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-          >
-            <ServerIcon className="h-3.5 w-3.5" />
-          </motion.div>
-        ) : isConnected ? (
-          <CheckCircleIcon className="h-3.5 w-3.5" />
-        ) : (
-          <AlertCircleIcon className="h-3.5 w-3.5" />
-        )}
-        <span>API: {isConnected ? "Connected" : hasCorsIssue ? "CORS Error" : "Disconnected"}</span>
-      </motion.div>
+  }, 3000);  // Throttle to once every 3 seconds at most
+
+  // Check API status with exponential backoff
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
+    // Initial check
+    checkApiStatus();
+
+    // Set up polling with exponential backoff on failure
+    const scheduleNextCheck = () => {
+      const backoffFactor = Math.min(attemptCount.current, 5); // Cap at 5 for reasonable max time
+      const nextInterval =
+        attemptCount.current === 0
+          ? pollInterval
+          : Math.min(pollInterval * Math.pow(1.5, backoffFactor), 60000); // Max 1 minute
+
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`Next API check in ${Math.round(nextInterval / 1000)}s`);
+      }
       
-      {expanded && status && (
-        <motion.div 
-          className="mt-1 bg-card/95 backdrop-blur-md p-3 rounded-lg text-xs shadow-lg border border-border/50 max-w-[260px]"
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: "auto" }}
-          transition={{ duration: 0.2 }}
-        >
-          <div className="font-medium mb-2">API Status</div>
-          
-          <div className="space-y-1">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Connection:</span>
-              <span className={isConnected ? "text-green-500" : "text-red-500"}>
-                {isConnected ? "OK" : "Failed"}
-              </span>
-            </div>
-            
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">CORS:</span>
-              <span className={status.corsOk ? "text-green-500" : "text-amber-500"}>
-                {status.corsOk ? "OK" : "Issue"}
-              </span>
-            </div>
-            
-            {status.apiInfo && (
-              <>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Version:</span>
-                  <span>{status.apiInfo.api_version}</span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total Slots:</span>
-                  <span>{status.apiInfo.total_slots}</span>
-                </div>
-              </>
-            )}
-            
-            {status.error && (
-              <div className="text-red-400 text-[10px] mt-2 break-words leading-tight">
-                {status.error}
-              </div>
-            )}
-          </div>
-        </motion.div>
-      )}
-    </motion.div>
+      timeoutId = setTimeout(checkApiStatus, nextInterval);
+    };
+
+    scheduleNextCheck();
+    return () => clearTimeout(timeoutId);
+  }, [checkApiStatus, pollInterval]);
+
+  // Only show when disconnected (after a check has failed) to reduce visual noise
+  if (apiConnected || !checkFailed) return null;
+
+  return (
+    <div className={`fixed top-16 left-2 z-50 px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 bg-destructive/20 text-destructive ${className}`}>
+      <SignalIcon className={`size-4 ${isRetrying ? "animate-pulse" : ""}`} />
+      <span>{isRetrying ? "Reconnecting..." : "API Disconnected"}</span>
+    </div>
   );
 }

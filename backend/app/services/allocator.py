@@ -143,6 +143,13 @@ class ParkingAllocator:
             # For single slot vehicles, just return the first available slot
             return [available_slots[0]] if available_slots else []
     
+    def find_optimal_slot(self, vehicle: Vehicle, floor: str = None) -> Optional[ParkingSlot]:
+        """Find a single optimal slot for the vehicle (for backward compatibility)"""
+        slots = self.find_optimal_slots(vehicle, floor)
+        if slots:
+            return slots[0]
+        return None
+
     def allocate_parking_slot(self, vehicle: Vehicle) -> Tuple[bool, Union[ParkingSlot, WaitlistEntry], str]:
         """
         Allocate a parking slot for a vehicle or add to waitlist if full
@@ -598,11 +605,17 @@ class ParkingAllocator:
             if slot.status == SlotStatus.OCCUPIED:
                 vehicle = self.db.query(Vehicle).filter(Vehicle.slot_id == slot.id).first()
                 if vehicle:
+                    # Use to_local_time_string for all datetime fields
+                    from app.models.parking import to_local_time_string
                     slot_data["vehicle"] = {
                         "id": vehicle.id,
                         "license_plate": vehicle.license_plate,
                         "vehicle_type": vehicle.vehicle_type,
-                        "estimated_departure": vehicle.estimated_departure.isoformat() if vehicle.estimated_departure else None
+                        "vehicle_size": vehicle.vehicle_size,
+                        "arrival_time": to_local_time_string(vehicle.arrival_time),
+                        "estimated_departure": to_local_time_string(vehicle.estimated_departure),
+                        "is_vip": vehicle.is_vip,
+                        "slots_occupied": vehicle.slots_occupied
                     }
                     
             result.append(slot_data)
@@ -624,12 +637,16 @@ class ParkingAllocator:
             # Add vehicle info
             vehicle = self.db.query(Vehicle).filter(Vehicle.id == entry.vehicle_id).first()
             if vehicle:
+                # Use to_local_time_string for all datetime fields
+                from app.models.parking import to_local_time_string
                 entry_data["vehicle"] = {
                     "id": vehicle.id,
                     "license_plate": vehicle.license_plate,
                     "vehicle_type": vehicle.vehicle_type,
-                    "arrival_time": vehicle.arrival_time.isoformat() if vehicle.arrival_time else None,
-                    "estimated_departure": vehicle.estimated_departure.isoformat() if vehicle.estimated_departure else None
+                    "vehicle_size": vehicle.vehicle_size,
+                    "arrival_time": to_local_time_string(vehicle.arrival_time),
+                    "estimated_departure": to_local_time_string(vehicle.estimated_departure),
+                    "is_vip": vehicle.is_vip
                 }
                 
             result.append(entry_data)

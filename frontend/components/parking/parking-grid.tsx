@@ -81,7 +81,18 @@ const vehicleTypeColors = {
 const formatDate = (dateString: string) => {
 	if (!dateString) return "";
 	try {
-		return new Date(dateString).toLocaleString();
+		// Create date object from string and format using local time
+		const date = new Date(dateString);
+
+		// Format with localized date and time
+		return new Intl.DateTimeFormat("en-US", {
+			year: "numeric",
+			month: "short",
+			day: "numeric",
+			hour: "2-digit",
+			minute: "2-digit",
+			hour12: true,
+		}).format(date);
 	} catch (e) {
 		return dateString;
 	}
@@ -117,27 +128,30 @@ const ParkingSlotComponent = memo(
 			slot.isPartOfGroup && slot.groupId === hoveredGroup;
 
 		// Determine slot appearance
-		let slotBgColor = "transparent";
 		let slotBorderStyle = "";
 
 		if (isOccupied) {
-			// Basic styling
-			slotBgColor = slot.groupColor || "transparent";
+			// Basic styling - Use the group color consistently across all slots
 
-			// Special styling for multi-slot vehicles - particularly for trucks
+			// Special styling for multi-slot vehicles
 			if (slot.isPartOfGroup) {
-				// All slots of a multi-slot vehicle get the same background color
-				slotBorderStyle = "border border-opacity-70";
+				// All slots of a multi-slot vehicle get the same background color and border
+				slotBorderStyle = "border border-opacity-90";
 
-				// For trucks, add a more visible styling
+				// Apply consistent styling based on vehicle type for all slots in the group
 				if (slot.vehicle?.vehicle_type === "truck") {
-					slotBgColor = vehicleTypeColors.truck.default;
-					slotBorderStyle = "border-2 border-red-500";
+					slotBorderStyle = "border-2 border-red-500/90";
+				} else if (slot.vehicle?.vehicle_type === "car") {
+					slotBorderStyle = "border-2 border-indigo-500/90";
+				} else if (slot.vehicle?.vehicle_type === "ev") {
+					slotBorderStyle = "border-2 border-orange-500/90";
+				} else if (slot.vehicle?.vehicle_type === "bike") {
+					slotBorderStyle = "border-2 border-emerald-500/90";
 				}
 
-				// Add special indicator for the first slot
+				// Highlight the first slot slightly differently
 				if (slot.isGroupStart) {
-					slotBorderStyle += " border-t-2 border-l-2";
+					slotBorderStyle += " rounded-tl-md";
 				}
 			} else {
 				// Single-slot vehicle
@@ -169,7 +183,22 @@ const ParkingSlotComponent = memo(
 								transformStyle: "preserve-3d",
 								transition: "all 0.2s ease",
 								transform: viewMode === "3d" ? "translateZ(1px)" : "none",
-								backgroundColor: isOccupied ? slotBgColor : undefined,
+								// Apply consistent background color based on vehicle type
+								backgroundColor: isOccupied
+									? slot.vehicle?.vehicle_type === "car"
+										? "rgba(99, 102, 241, 0.5)"
+										: slot.vehicle?.vehicle_type === "bike"
+										? "rgba(52, 211, 153, 0.6)"
+										: slot.vehicle?.vehicle_type === "ev"
+										? "rgba(251, 146, 60, 0.6)"
+										: slot.vehicle?.vehicle_type === "truck"
+										? "rgba(239, 68, 68, 0.6)"
+										: "rgba(05, 12, 21, 0.5)"
+									: "transparent",
+								// Add golden overlay for VIP vehicles
+								backgroundImage: isVIP
+									? "linear-gradient(rgba(250, 204, 21, 0.3), rgba(250, 204, 21, 0.1))"
+									: "none",
 								boxShadow: isVIP
 									? `0 0 8px rgba(250, 204, 21, 0.8)`
 									: undefined,
@@ -416,14 +445,42 @@ export function ParkingGrid({
 
 		// Create a map of vehicle IDs to their occupied slots
 		const vehicleSlotMap: Record<number, number[]> = {};
+		const vehicleColorMap: Record<number, string> = {};
 
-		// First pass: identify which vehicles occupy which slots
+		// First pass: identify which vehicles occupy which slots and assign colors
 		filledParkingSlots.forEach((slot) => {
 			if (slot.vehicle && slot.status === "occupied") {
 				const vehicleId = slot.vehicle.id;
+
+				// Store slot IDs for this vehicle
 				if (!vehicleSlotMap[vehicleId]) {
 					vehicleSlotMap[vehicleId] = [];
+
+					// Assign a consistent color for this vehicle
+					let color;
+					if (slot.vehicle.vehicle_type === "car") {
+						const size = slot.vehicle.vehicle_size || "medium";
+						color =
+							vehicleTypeColors.car[size as keyof typeof vehicleTypeColors.car];
+					} else if (slot.vehicle.vehicle_type === "bike") {
+						color = vehicleTypeColors.bike.default;
+					} else if (slot.vehicle.vehicle_type === "ev") {
+						color = vehicleTypeColors.ev.default;
+					} else if (slot.vehicle.vehicle_type === "truck") {
+						color = vehicleTypeColors.truck.default;
+					}
+
+					// Apply VIP styling if needed
+					if (slot.vehicle.is_vip) {
+						color = `linear-gradient(${color || "rgba(99, 102, 241, 0.5)"}, ${
+							vehicleTypeColors.vip.overlay
+						})`;
+					}
+
+					// Store the color for this vehicle
+					vehicleColorMap[vehicleId] = color || "rgba(99, 102, 241, 0.5)";
 				}
+
 				vehicleSlotMap[vehicleId].push(slot.id);
 			}
 		});
@@ -444,27 +501,8 @@ export function ParkingGrid({
 					const slotsOccupied = slot.vehicle.slots_occupied || 1;
 					const isMultiSlot = slotsOccupied > 1 || slotsForVehicle.length > 1;
 
-					// Determine the color based on vehicle type and size
-					let color;
-					if (slot.vehicle.vehicle_type === "car") {
-						const size = slot.vehicle.vehicle_size || "medium";
-						color =
-							vehicleTypeColors.car[size as keyof typeof vehicleTypeColors.car];
-					} else if (slot.vehicle.vehicle_type === "bike") {
-						color = vehicleTypeColors.bike.default;
-					} else if (slot.vehicle.vehicle_type === "ev") {
-						color = vehicleTypeColors.ev.default;
-					} else if (slot.vehicle.vehicle_type === "truck") {
-						color = vehicleTypeColors.truck.default;
-					}
-
-					// Apply VIP styling if needed
-					if (slot.vehicle.is_vip) {
-						// Adjust color for VIP vehicles - make it more golden/premium
-						color = `linear-gradient(${color || "rgba(99, 102, 241, 0.5)"}, ${
-							vehicleTypeColors.vip.overlay
-						})`;
-					}
+					// Get the color from our color map for consistent coloring
+					const color = vehicleColorMap[vehicleId];
 
 					// For multi-slot vehicles, mark all slots as part of a group
 					if (isMultiSlot) {
@@ -478,6 +516,7 @@ export function ParkingGrid({
 							groupId: vehicleId,
 							isGroupStart: slot.id === minSlotId,
 							groupSize: slotsOccupied || slotsForVehicle.length,
+							// Apply the same color to all slots in the group
 							groupColor: color,
 						};
 					} else {

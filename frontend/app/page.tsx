@@ -12,15 +12,21 @@ import {
 	RefreshCwIcon,
 	AlertCircleIcon,
 	ZapIcon,
-	ChevronUpIcon,
-	ChevronDownIcon,
 	TrashIcon,
 	SignalIcon,
+	LogOutIcon,
+	ShuffleIcon,
+	SettingsIcon
 } from "lucide-react";
 
 import { LoadingScreen } from "@/components/loading";
 import { ParkingGrid } from "@/components/parking/parking-grid";
 import { BottomToolbar } from "@/components/parking/bottom-toolbar";
+import { FloorNavigation } from "@/components/parking/floor-navigation";
+import { DepartureDialog } from "@/components/parking/departure-dialog";
+import { WaitlistPanel } from "@/components/parking/waitlist-panel";
+import { CompactionNotification } from "@/components/parking/compaction-notification";
+import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { useBackendParking } from "@/hooks/useBackendParking";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,7 +36,6 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { throttle } from "@/lib/performance";
-import { Settings } from "lucide-react";
 import Link from "next/link";
 
 // More descriptive API Status Indicator with retry functionality
@@ -125,6 +130,8 @@ export default function Home() {
 	const [gridSize, setGridSize] = useState(8);
 	const [showGridConfig, setShowGridConfig] = useState(false);
 	const [isVIP, setIsVIP] = useState(false);
+	const [showDepartureDialog, setShowDepartureDialog] = useState(false);
+	const [triggerCompaction, setTriggerCompaction] = useState(false);
 
 	// All ref hooks
 	const prefersReducedMotion = useReducedMotion();
@@ -132,19 +139,19 @@ export default function Home() {
 	const floorChangeRef = useRef(false); // Track if floor change is in progress
 
 	// Custom hooks
-	  const {
-			parkingSlots,
-			parkingStatus,
-			waitlist,
-			loading: apiLoading,
-			error: apiError,
-			refreshData,
-			parkVehicle,
-			initializeParking,
-		} = useBackendParking(floor);
+	const {
+		parkingSlots,
+		parkingStatus,
+		waitlist,
+		loading: apiLoading,
+		error: apiError,
+		refreshData,
+		parkVehicle,
+		initializeParking,
+	} = useBackendParking(floor);
 	  
-	  // Create our own initializing state since it's not provided by the hook
-	  const [initializing, setInitializing] = useState(false);
+	// Create our own initializing state since it's not provided by the hook
+	const [initializing, setInitializing] = useState(false);
 
 	// All useEffect hooks - keep them together
 	// If user prefers reduced motion, disable animations
@@ -188,6 +195,37 @@ export default function Home() {
 		apiLoading,
 		initializing,
 	]);
+	
+	// Auto-compaction trigger when a certain number of vehicles depart
+	useEffect(() => {
+		// Simple algorithm to detect when compaction should be triggered
+		// In real implementation, this would be triggered by backend API
+		const occupied = parkingSlots.filter(slot => slot.status === 'occupied').length;
+		const total = parkingSlots.length;
+		const occupancyRate = occupied / total;
+		
+		// If occupancy is between 30% and 70% and not already compacting, consider compaction
+		if (occupancyRate > 0.3 && occupancyRate < 0.7 && !triggerCompaction) {
+			// Count separate clusters of occupied slots
+			let clusters = 0;
+			let lastEmpty = true;
+			
+			// Simplified detection
+			parkingSlots.forEach(slot => {
+				const isEmpty = slot.status === 'available';
+				if (!isEmpty && lastEmpty) {
+					clusters++;
+				}
+				lastEmpty = isEmpty;
+			});
+			
+			// If we detect fragmentation, randomly trigger compaction
+			// This is just a visual simulation
+			if (clusters > 3 && Math.random() < 0.01) {
+				setTriggerCompaction(true);
+			}
+		}
+	}, [parkingSlots, triggerCompaction]);
 
 	// Analytics tracking - make sure this is always defined
 	useEffect(() => {
@@ -233,100 +271,33 @@ export default function Home() {
 	// All useMemo hooks
 	const floors = useMemo(() => ["1", "2", "3"], []);
 
-	const prevFloor = useCallback(() => {
-		if (floorChangeRef.current) return; // Prevent rapid changes
-		floorChangeRef.current = true;
-
-		const currentIndex = floors.indexOf(floor);
-		if (currentIndex > 0) {
-			setFloor(floors[currentIndex - 1]);
-		}
-
-		setTimeout(() => {
-			floorChangeRef.current = false;
-		}, 300);
-	}, [floor, floors]);
-
-	const nextFloor = useCallback(() => {
-		if (floorChangeRef.current) return; // Prevent rapid changes
-		floorChangeRef.current = true;
-
-		const currentIndex = floors.indexOf(floor);
-		if (currentIndex < floors.length - 1) {
-			setFloor(floors[currentIndex + 1]);
-		}
-
-		setTimeout(() => {
-			floorChangeRef.current = false;
-		}, 300);
-	}, [floor, floors]);
-
-	// Memoize complex components
-	const renderFloorNavigation = useMemo(() => {
-		if (showAllFloors) return null;
-
-		return (
-			<div className="fixed left-3 sm:left-4 lg:left-6 top-1/2 -translate-y-1/2 flex flex-col gap-2 md:gap-3 z-30">
-				<TooltipProvider>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<motion.button
-								onClick={prevFloor}
-								className={`h-9 w-9 md:h-10 md:w-10 rounded-full flex items-center justify-center transition-all focus:outline-none focus:ring-2 focus:ring-primary/50 ${
-									floors.indexOf(floor) > 0
-										? "bg-primary text-primary-foreground"
-										: "bg-muted/60 text-muted-foreground cursor-not-allowed"
-								}`}
-								whileHover={{
-									scale: floors.indexOf(floor) > 0 ? 1.1 : 1,
-									y: floors.indexOf(floor) > 0 ? -2 : 0,
-								}}
-								whileTap={{ scale: floors.indexOf(floor) > 0 ? 0.95 : 1 }}
-								disabled={floors.indexOf(floor) === 0}
-							>
-								<ChevronUpIcon className="h-5 w-5" />
-							</motion.button>
-						</TooltipTrigger>
-						<TooltipContent side="right">
-							<p>Previous floor</p>
-						</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
-
-				<div className="h-9 w-9 md:h-10 md:w-10 rounded-full bg-card flex items-center justify-center font-bold text-lg border border-border/50">
-					{floor}
-				</div>
-
-				<TooltipProvider>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<motion.button
-								onClick={nextFloor}
-								className={`h-9 w-9 md:h-10 md:w-10 rounded-full flex items-center justify-center transition-all focus:outline-none focus:ring-2 focus:ring-primary/50 ${
-									floors.indexOf(floor) < floors.length - 1
-										? "bg-primary text-primary-foreground"
-										: "bg-muted/60 text-muted-foreground cursor-not-allowed"
-								}`}
-								whileHover={{
-									scale: floors.indexOf(floor) < floors.length - 1 ? 1.1 : 1,
-									y: floors.indexOf(floor) < floors.length - 1 ? 2 : 0,
-								}}
-								whileTap={{
-									scale: floors.indexOf(floor) < floors.length - 1 ? 0.95 : 1,
-								}}
-								disabled={floors.indexOf(floor) === floors.length - 1}
-							>
-								<ChevronDownIcon className="h-5 w-5" />
-							</motion.button>
-						</TooltipTrigger>
-						<TooltipContent side="right">
-							<p>Next floor</p>
-						</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
-			</div>
-		);
-	}, [floor, floors, showAllFloors]);
+	// Define keyboard shortcuts
+	const shortcuts = useMemo(() => [
+		{ key: "c", action: () => setVehicleType("car"), description: "Select Car" },
+		{ key: "b", action: () => setVehicleType("bike"), description: "Select Bike" },
+		{ key: "e", action: () => setVehicleType("ev"), description: "Select Electric Vehicle" },
+		{ key: "t", action: () => setVehicleType("truck"), description: "Select Truck" },
+		{ key: "1", action: () => !showAllFloors && setFloor("1"), description: "Go to Floor 1" },
+		{ key: "2", action: () => !showAllFloors && setFloor("2"), description: "Go to Floor 2" },
+		{ key: "3", action: () => !showAllFloors && setFloor("3"), description: "Go to Floor 3" },
+		{ key: "v", action: () => setIsVIP(!isVIP), description: "Toggle VIP Status" },
+		{ key: "a", action: () => setShowAllFloors(!showAllFloors), description: "Toggle All Floors View" },
+		{ key: "d", action: () => setViewMode(viewMode === "2d" ? "3d" : "2d"), description: "Toggle 2D/3D View" },
+		{ key: "Tab", action: () => setBottomBarVisible(true), description: "Show Bottom Toolbar" },
+		{ key: "l", action: () => setShowDepartureDialog(true), description: "Show Departure Dialog" },
+		{ key: "Escape", action: () => {
+			if (showDepartureDialog) {
+				setShowDepartureDialog(false);
+				return;
+			}
+			
+			if (vehicleType) {
+				setVehicleType(null);
+				return;
+			}
+		}, description: "Cancel/Close Current Action" },
+		{ key: "r", action: () => refreshData(), description: "Refresh Parking Data" },
+	], [showAllFloors, isVIP, viewMode, vehicleType, showDepartureDialog, refreshData]);
 
 	// All useCallback hooks - keep them together at the end
 	// Throttled park vehicle function to prevent multiple submissions
@@ -373,7 +344,7 @@ export default function Home() {
 					setVehicleType(null);
 					setDepartureTime("");
 
-						// Refresh data to show the updated parking grid
+					// Refresh data to show the updated parking grid
 					refreshData();
 				} else {
 					toast.warning(`Parking is full, added to waitlist`, {
@@ -418,7 +389,17 @@ export default function Home() {
 		}, 1000),
 		[initializeParking, refreshData]
 	);
-
+	
+	// Trigger compaction manually (simulation)
+	const handleTriggerCompaction = useCallback(() => {
+		setTriggerCompaction(true);
+	}, []);
+	
+	// Handle compaction completion
+	const handleCompactionEnd = useCallback(() => {
+		setTriggerCompaction(false);
+		refreshData(); // Refresh to show updated slots
+	}, [refreshData]);
 
 	// Update grid size with throttling to prevent excessive re-renders
 	const handleGridSizeChange = useCallback(
@@ -427,14 +408,16 @@ export default function Home() {
 		}, 300),
 		[]
 	);
+	
+	// Handle vehicle departure completion
+	const handleDepartureComplete = useCallback(async () => {
+		await refreshData();
+	}, [refreshData]);
 
 	// Show loading screen during initialization
 	if (initialLoading) {
 		return <LoadingScreen />;
 	}
-
-	// Add analytics tracking and memory leak protection - these are already defined above
-	// Removing duplicate useEffect calls
 
 	return (
 		<div className="flex flex-col h-screen bg-background overflow-hidden">
@@ -443,8 +426,11 @@ export default function Home() {
         href="/settings" 
         className="fixed top-2 left-2 z-50 p-1.5 bg-card/80 backdrop-blur-sm rounded-full hover:bg-card/95 transition-colors"
       >
-        <Settings className="size-4 text-muted-foreground" />
+        <SettingsIcon className="size-4 text-muted-foreground" />
       </Link>
+      
+      {/* Keyboard shortcuts component */}
+      <KeyboardShortcuts shortcuts={shortcuts} />
 
 			{/* API status indicator with longer poll interval to reduce unnecessary requests */}
 			<ApiStatusIndicator pollInterval={60000} />
@@ -510,11 +496,35 @@ export default function Home() {
 							</div>
 						)}
 					</div>
+					
+					{/* Action buttons */}
+					<div className="border-t border-border/30 mt-1.5 pt-1.5 flex gap-2">
+						<Button 
+							size="sm" 
+							variant="ghost" 
+							className="text-[10px] h-6 px-2 gap-1"
+							onClick={() => setShowDepartureDialog(true)}
+						>
+							<LogOutIcon className="h-3 w-3" />
+							<span>Departures</span>
+						</Button>
+						
+						<Button 
+							size="sm" 
+							variant="ghost" 
+							className="text-[10px] h-6 px-2 gap-1"
+							onClick={handleTriggerCompaction}
+							disabled={triggerCompaction}
+						>
+							<ShuffleIcon className="h-3 w-3" />
+							<span>Compact</span>
+						</Button>
+					</div>
 				</div>
 			)}
 
 			{/* Reset button */}
-			<div className="fixed top-2 left-1/2 -translate-x-1/2 z-50">
+			<div className="fixed top-2 left-10 z-50">
 				<Button
 					onClick={handleResetSystem}
 					className="text-xs bg-destructive hover:bg-destructive/90 text-white gap-1.5"
@@ -526,8 +536,14 @@ export default function Home() {
 				</Button>
 			</div>
 
-			{/* Floor navigation buttons */}
-			{renderFloorNavigation}
+			{/* Floor navigation */}
+			{!showAllFloors && (
+				<FloorNavigation 
+					currentFloor={floor}
+					floors={floors}
+					onFloorChange={setFloor}
+				/>
+			)}
 
 			{/* Main content area - Optimized rendering */}
 			<motion.div
@@ -684,7 +700,52 @@ export default function Home() {
 						</TooltipContent>
 					</Tooltip>
 				</motion.div>
+				
+				{/* Departure button */}
+				<motion.div
+					initial={{ opacity: 0, x: 20 }}
+					animate={{ opacity: 1, x: 0 }}
+					transition={{ duration: 0.3, delay: 0.3 }}
+				>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<motion.button
+								onClick={() => setShowDepartureDialog(true)}
+								className="h-9 w-9 md:h-10 md:w-10 rounded-full bg-muted/80 text-muted-foreground hover:bg-muted/90 flex items-center justify-center transition-all focus:outline-none focus:ring-2 focus:ring-primary/50"
+								whileHover={{ scale: 1.1, y: -2 }}
+								whileTap={{ scale: 0.95 }}
+							>
+								<LogOutIcon className="h-4 w-4 md:h-5 md:w-5" />
+							</motion.button>
+						</TooltipTrigger>
+						<TooltipContent side="left">
+							<p>Vehicle Departure</p>
+						</TooltipContent>
+					</Tooltip>
+				</motion.div>
 			</div>
+			
+			{/* Waitlist panel */}
+			{/* <WaitlistPanel
+				waitlist={waitlist}
+				isLoading={apiLoading}
+				onRefresh={refreshData}
+			/> */}
+			
+			{/* Compaction notification */}
+			<CompactionNotification
+				triggerCompaction={triggerCompaction}
+				parkingSlots={parkingSlots}
+				onCompactionEnd={handleCompactionEnd}
+			/>
+			
+			{/* Departure dialog */}
+			<DepartureDialog
+				isOpen={showDepartureDialog}
+				onClose={() => setShowDepartureDialog(false)}
+				parkingSlots={parkingSlots}
+				onDeparted={handleDepartureComplete}
+			/>
 
 			{/* Bottom toolbar */}
 			<BottomToolbar

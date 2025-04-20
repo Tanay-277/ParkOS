@@ -10,6 +10,7 @@ interface Vehicle {
   estimated_departure?: string;
   is_vip?: boolean;
   slots_occupied?: number;
+  stay_duration_hours?: number; // Add stay duration to help with calculations
 }
 
 interface ParkingSlot {
@@ -243,22 +244,38 @@ export function useParkingSystem(floor: string): ParkingSystemResult {
         }
         
         if (canFit) {
-          // Create the vehicle
+          // Create a stable random number generator based on slot and floor
+          const seedValue = slotId + parseInt(floor) * 100;
+          const getRandom = (min: number, max: number) => {
+            const seed = (seedValue * 9301 + 49297) % 233280;
+            const random = seed / 233280;
+            return min + Math.floor(random * (max - min + 1));
+          };
+          
+          // Set arrival time to 0-3 hours ago (consistent based on slot)
+          const now = new Date();
           const arrivalTime = new Date();
-          arrivalTime.setHours(arrivalTime.getHours() - Math.floor(Math.random() * 4)); // 0-3 hours ago
+          const hoursAgo = getRandom(0, 3);
+          arrivalTime.setHours(now.getHours() - hoursAgo);
           
-          const departureTime = new Date();
-          departureTime.setHours(departureTime.getHours() + 1 + Math.floor(Math.random() * 5)); // 1-5 hours from now
+          // Calculate stay duration (1-5 hours, consistent based on slot)
+          const stayHours = getRandom(1, 5);
           
+          // Calculate estimated departure time based on arrival and stay duration
+          const departureTime = new Date(arrivalTime);
+          departureTime.setHours(arrivalTime.getHours() + stayHours);
+          
+          // Create the vehicle with guaranteed arrival and departure times
           const vehicle: Vehicle = {
             id: slotId * 100 + parseInt(floor),
-            license_plate: generateLicensePlate(slotId + parseInt(floor) * 100),
+            license_plate: generateLicensePlate(seedValue),
             vehicle_type: vehicleData.type,
             vehicle_size: vehicleData.size,
             arrival_time: arrivalTime.toISOString(),
             estimated_departure: departureTime.toISOString(),
             is_vip: vehicleData.vip,
-            slots_occupied: slotsNeeded
+            slots_occupied: slotsNeeded,
+            stay_duration_hours: stayHours  // Add stay duration to help with calculations
           };
           
           // Occupy the slots with this vehicle

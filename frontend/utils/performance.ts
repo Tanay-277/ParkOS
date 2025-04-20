@@ -1,5 +1,7 @@
 /**
  * Performance optimization utilities to improve app performance
+ * @deprecated - Use functions from lib/performance.ts instead
+ * This file is maintained for backward compatibility only
  */
 
 /**
@@ -67,6 +69,7 @@ export class FPSMonitor {
 /**
  * Returns a function that throttles animation frames 
  * to a specific frame rate target (e.g., 30fps)
+ * @deprecated - Use createFrameRateLimiter from lib/performance.ts instead
  */
 export function createFrameThrottler(targetFPS: number = 30) {
   const frameInterval = 1000 / targetFPS;
@@ -85,30 +88,20 @@ export function createFrameThrottler(targetFPS: number = 30) {
 
 /**
  * Detect if device is likely to have performance issues
+ * @deprecated - Use isLowPerformanceDevice from lib/performance.ts instead
  */
 export function isLowPerformanceDevice() {
-  // Check for low memory
-  const memory = (navigator as any).deviceMemory;
-  if (memory && memory <= 4) {
-    return true;
-  }
-  
-  // Check for mobile device
-  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-  
-  // Check for slow CPU
-  const hardwareConcurrency = navigator.hardwareConcurrency || 0;
-  if (hardwareConcurrency <= 4 && isMobile) {
-    return true;
-  }
-  
-  return false;
+  // Import from the new location to maintain backward compatibility
+  const { isLowPerformanceDevice } = require('../lib/performance');
+  return isLowPerformanceDevice();
 }
 
 /**
  * Batch DOM operations for better performance
+ * @deprecated - Use batchDOMOperations from lib/performance.ts instead
  */
 export function batchDOMOperations<T>(callback: () => T): T {
-  // Leverage requestAnimationFrame for batching
-  return callback();
+  // Import from the new location to maintain backward compatibility
+  const { batchDOMOperations } = require('../lib/performance');
+  return batchDOMOperations(callback);
 }
